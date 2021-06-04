@@ -7,7 +7,7 @@ import models
 import sys
 import os
 from models import predict
-from data import STGT_Dataset
+from data import STAGNN_Dataset
 from torch.utils.tensorboard import SummaryWriter
 from utils.utils import evaluate_metric
 from config import DefaultConfig, Logger
@@ -46,9 +46,9 @@ def train(**kwargs):
     
     # load data
     batch_size = opt.batch_size
-    train_dataset = STGT_Dataset(opt, train=True, val=False)
-    val_dataset = STGT_Dataset(opt, train=False, val=True)
-    test_dataset = STGT_Dataset(opt, train=False, val=False)
+    train_dataset = STAGNN_Dataset(opt, train=True, val=False)
+    val_dataset = STAGNN_Dataset(opt, train=False, val=True)
+    test_dataset = STAGNN_Dataset(opt, train=False, val=False)
 
     train_iter = torch.utils.data.DataLoader(train_dataset, batch_size, shuffle=True)
     val_iter = torch.utils.data.DataLoader(val_dataset, batch_size)
@@ -56,26 +56,16 @@ def train(**kwargs):
     
     # mask
     n_route = opt.n_route
-    enc_spa_mask = torch.ones(1, 1, n_route, n_route).cuda()
     n_his = opt.n_his
-    enc_tem_mask = torch.ones(1, 1, n_his, n_his).cuda()
     n_pred = opt.n_pred
+    enc_spa_mask = torch.ones(1, 1, n_route, n_route).cuda()
+    enc_tem_mask = torch.ones(1, 1, n_his, n_his).cuda()
     dec_slf_mask = torch.tril(torch.ones((1, 1, n_pred + 1, n_pred + 1)), diagonal=0).cuda()
     dec_mul_mask = torch.ones(1, 1, n_pred + 1, n_his).cuda()
-
+    
     # loss
-    loss_name = opt.loss_fn['name']
-    if loss_name == 'sl1':
-        loss_fn = nn.SmoothL1Loss()
-    elif loss_name == 'l1':
-        loss_fn = nn.L1Loss()
-    elif loss_name == 'l2':
-        loss_fn = nn.MSELoss()
-    elif loss_name == 'l3':
-        loss_fn = HighLightLoss(opt.loss_fn['constant'], n_pred, opt.loss_fn['step'])
-    elif loss_name == 'l4':
-        loss_fn = HuberLoss(opt.loss_fn['delta'])
-        
+    loss_fn = nn.L1Loss()
+    
     # model
     model = getattr(models, opt.model)(
         opt,
@@ -125,7 +115,6 @@ def train(**kwargs):
         for x, y in train_iter:
             _, loss = model(x, y, epoch)
             optimizer.zero_grad()
-            # loss.backward(retain_graph=True)
             loss.backward()
             optimizer.step()
             loss_sum += loss.item()
@@ -166,8 +155,12 @@ def train(**kwargs):
     writer = SummaryWriter('/tmp')
     
     test_loss = test(best_model, loss_fn, test_iter, opt)
-    MAE, MAPE, RMSE = evaluate_metric(best_model, test_iter, opt)
-    print("test loss:", test_loss, "\nMAE:", MAE, ", MAPE:", MAPE, "%, RMSE:", RMSE)
+    if opt.mode == 1:
+        MAE, MAPE, RMSE = evaluate_metric(best_model, test_iter, opt)
+        print("test loss:", test_loss, "\nMAE:", MAE, ", MAPE:", MAPE, "%, RMSE:", RMSE)
+    elif opt.mode == 2:
+        RAE, RSE, COR = evaluate_metric(best_model, test_iter, opt)
+        print("test loss:", test_loss, "\nRAE:", RAE, ", RSE:", RSE, "%, RMSE:", COR)
     print('='*20)
 
 

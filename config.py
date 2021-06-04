@@ -9,24 +9,21 @@ from utils.utils import weight_matrix
 
 class DefaultConfig(object):
     seed = 666
-    device = 4
+    device = 0
 
     scaler = StandardScaler()
     day_slot = 288
     n_route, n_his, n_pred = 228, 12, 12
     n_train, n_val, n_test = 34, 5, 5
     
-    datasplit = 'stgcn'   # gwn, stgcn
+    mode = 1
+    # 1: 3, 6, 9, 12
+    # 2: 3, 6, 12, 18, 24
 
-    model = 'STGT'
-    name = 'STGAT'
+    model = 'STAGNN'
+    name = 'PeMS'
     batch_size = 50
     lr = 1e-3
-    
-    l1 = {'name': 'l1'}
-    l3 = {'name': 'l3', 'constant': 3, 'step': 3}
-    l4 = {'name': 'l4', 'delta': 0.3}
-    loss_fn = l1
     
     adam = {'use': True, 'weight_decay': 1e-4}
     slr = {'use': True, 'step_size': 300, 'gamma': 0.3}
@@ -77,6 +74,7 @@ class DefaultConfig(object):
         dis_mat['matrix'] = torch.from_numpy(dis_mat['matrix']).float()
     elif dis_mat['name'] == 'N':
         dis_mat['matrix'] = 0.0
+
 
     def parse(self, kwargs):
         '''

@@ -11,42 +11,76 @@ def transform(data: torch.Tensor, train: bool, opt: object, start: int) -> torch
     ie. x.shape = [n_his, routes] and y.shape = [n_pred, routes]
     then, concat head and tail to the data and label  
     '''
-    n_his = opt.n_his
-    n_pred = opt.n_pred
-    n_route = opt.n_route
-    day_slot = opt.day_slot
-    T4N_step = opt.T4N['step']
+    if opt.mode == 1:
+        n_his = opt.n_his
+        n_pred = opt.n_pred
+        n_route = opt.n_route
+        day_slot = opt.day_slot
+        T4N_step = opt.T4N['step']
+        
+        n_day = len(data) // day_slot
+        n_slot = 288 * n_day
+
+        if train:
+            n_slot = day_slot - n_his - n_pred - T4N_step + 2
+            x = torch.zeros(n_day * n_slot, 1, n_his, n_route)
+            y = torch.zeros(n_day * n_slot, 1, n_pred + T4N_step - 1, n_route)
+        else:
+            n_slot = day_slot - n_his - n_pred + 1
+            x = torch.zeros(n_day * n_slot, 1, n_his, n_route)
+            y = torch.zeros(n_day * n_slot, 1, n_pred, n_route)
+
+        for i in range(n_day):
+            for j in range(n_slot):
+                t = i * n_slot + j
+                s = i * day_slot + j
+                e = s + n_his
+                x[t, :, :, :] = data[s : e].reshape(1, n_his, n_route)
+                if train:
+                    length = n_pred + T4N_step - 1
+                    y[t, :, :, :] = data[e : e + length].reshape(1, length, n_route)
+                else:
+                    y[t, :, :, :] = data[e : e + n_pred].reshape(1, n_pred, n_route)
+                
+        x = x.permute(0, 3, 2, 1)   # [slots, 1, n_his, n_route] -> [slots, n_route, n_his, 1]
+        y = y.permute(0, 3, 2, 1)   # [slots, 1, n_pred, n_route] -> [slots, n_route, n_pred, 1]
+        return x, y
     
-    n_day = len(data) // day_slot
-    n_slot = 288 * n_day
-
-    if train:
-        n_slot = day_slot - n_his - n_pred - T4N_step + 2
-        x = torch.zeros(n_day * n_slot, 1, n_his, n_route)
-        y = torch.zeros(n_day * n_slot, 1, n_pred + T4N_step - 1, n_route)
-    else:
-        n_slot = day_slot - n_his - n_pred + 1
-        x = torch.zeros(n_day * n_slot, 1, n_his, n_route)
-        y = torch.zeros(n_day * n_slot, 1, n_pred, n_route)
-
-    for i in range(n_day):
-        for j in range(n_slot):
-            t = i * n_slot + j
-            s = i * day_slot + j
-            e = s + n_his
-            x[t, :, :, :] = data[s : e].reshape(1, n_his, n_route)
-            if train:
-                length = n_pred + T4N_step - 1
-                y[t, :, :, :] = data[e : e + length].reshape(1, length, n_route)
-            else:
-                y[t, :, :, :] = data[e : e + n_pred].reshape(1, n_pred, n_route)
+    elif opt.mode == 2:
+        n_his = opt.n_his
+        n_pred = opt.n_pred
+        n_route = opt.n_route
+        T4N_step = opt.T4N['step']
+        
+        if train:
+            total_len = data.shape[0] - 30 - n_his + 1
+        else:
+            total_len = data.shape[0] - 24 - n_his + 1
+        
+        x = torch.zeros(total_len, 1, n_his, n_route)
+        if train:
+            y = torch.zeros(total_len, 1, n_pred + T4N_step - 1, n_route)
+        else:
+            y = torch.zeros(total_len, 1, n_pred, n_route)
+        
+        for i in range(total_len):
+            x[i, :, :, :] = data[i : i+n_his].reshape(1, n_his, n_route)
             
-    x = x.permute(0, 3, 2, 1)   # [slots, 1, n_his, n_route] -> [slots, n_route, n_his, 1]
-    y = y.permute(0, 3, 2, 1)   # [slots, 1, n_pred, n_route] -> [slots, n_route, n_pred, 1]
-    return x, y
+            if train:
+                s = i + n_his
+                index = [s+2, s+5, s+11, s+17, s+23, s+29]
+                y[i, :, :, :] = data[index, :].reshape(1, n_pred + T4N_step - 1, n_route)
+            else:
+                s = i + n_his
+                index = [s+2, s+5, s+11, s+17, s+23]
+                y[i, :, :, :] = data[index, :].reshape(1, n_pred, n_route)         
+
+        x = x.permute(0, 3, 2, 1)   # [slots, 1, n_his, n_route] -> [slots, n_route, n_his, 1]
+        y = y.permute(0, 3, 2, 1)   # [slots, 1, n_pred, n_route] -> [slots, n_route, n_pred, 1]
+        return x.cuda(), y.cuda()
 
 
-class STGT_Dataset(torch.utils.data.Dataset):
+class STAGNN_Dataset(torch.utils.data.Dataset):
     def __init__(self, opt: object, train: bool, val: bool) -> torch.Tensor:
         '''
         split data to Train/Val/Test dataset
@@ -65,9 +99,8 @@ class STGT_Dataset(torch.utils.data.Dataset):
         else:
             start = len_train + len_val
 
-        sklearn = opt.sklearn
-        if sklearn:
-            scaler = opt.scaler   # standardlize dataset
+        
+        scaler = opt.scaler   # standardlize dataset
 
         if train:
             self.dataset = data[: len_train]    # [len_train, 228]
@@ -81,8 +114,8 @@ class STGT_Dataset(torch.utils.data.Dataset):
 
         self.dataset = torch.Tensor(self.dataset)   # ndarray -> tensor
         self.x, self.y = transform(self.dataset, train, opt, start)
-        self.x, self.y = self.x.cuda(), self.y.cuda()
-
+       
+       
     def __len__(self) -> int:
         '''
         return time slots the dataset have

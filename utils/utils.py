@@ -51,38 +51,108 @@ def masked_mape(preds, labels, null_val=np.nan):
 
 
 def evaluate_metric(model, data_iter, opt):
-    model.eval()
-    scaler = opt.scaler
-    n_pred = opt.n_pred
-    
-    length = n_pred // 3
-    with torch.no_grad():
-        mae = [[] for _ in range(length)]
-        mape = [[] for _ in range(length)]
-        mse = [[] for _ in range(length)]
-        MAE, MAPE, RMSE = [0.0] * length, [0.0] * length, [0.0] * length
-
-        for x, y in data_iter:            
-            y_pred = predict(model, x, y, opt).permute(0, 3, 2, 1)
-            y_pred = scaler.inverse_transform(y_pred.cpu().numpy())
-          
-            for i in range(length):
-                y_pred_select = y_pred[:, :, 3 * i + 2, :].reshape(-1)
-                y_select = y[:, :, 3 * i + 2, :].reshape(-1)
-                d = np.abs(y_select - y_pred_select)
-
-                y_pred_select = torch.from_numpy(y_pred_select)
-                y_select = torch.from_numpy(y_select)
-                mae[i] += masked_mae(y_pred_select, y_select,0.0).numpy().tolist()
-                mape[i] += masked_mape(y_pred_select, y_select,0.0).numpy().tolist()
-                mse[i] += masked_mse(y_pred_select, y_select,0.0).numpy().tolist()
-
-        for j in range(length):
-            MAE[j] = np.array(mae[j]).mean()
-            MAPE[j] = 100.0 * (np.array(mape[j]).mean())
-            RMSE[j] = np.sqrt(np.array(mse[j]).mean())
+    if opt.mode == 1:
+        model.eval()
+        scaler = opt.scaler
+        n_pred = opt.n_pred
         
-        return MAE, MAPE, RMSE
+        length = n_pred // 3
+        with torch.no_grad():
+            mae = [[] for _ in range(length)]
+            mape = [[] for _ in range(length)]
+            mse = [[] for _ in range(length)]
+            MAE, MAPE, RMSE = [0.0] * length, [0.0] * length, [0.0] * length
+
+            for x, y in data_iter:            
+                y_pred = predict(model, x, y, opt).permute(0, 3, 2, 1)
+                y_pred = scaler.inverse_transform(y_pred.cpu().numpy())
+            
+                for i in range(length):
+                    y_pred_select = y_pred[:, :, 3 * i + 2, :].reshape(-1)
+                    y_select = y[:, :, 3 * i + 2, :].reshape(-1)
+                    d = np.abs(y_select - y_pred_select)
+
+                    y_pred_select = torch.from_numpy(y_pred_select)
+                    y_select = torch.from_numpy(y_select)
+                    mae[i] += masked_mae(y_pred_select, y_select,0.0).numpy().tolist()
+                    mape[i] += masked_mape(y_pred_select, y_select,0.0).numpy().tolist()
+                    mse[i] += masked_mse(y_pred_select, y_select,0.0).numpy().tolist()
+
+            for j in range(length):
+                MAE[j] = np.array(mae[j]).mean()
+                MAPE[j] = 100.0 * (np.array(mape[j]).mean())
+                RMSE[j] = np.sqrt(np.array(mse[j]).mean())
+            
+            return MAE, MAPE, RMSE
+
+    elif opt.mode == 2:
+        model.eval()
+        scaler = opt.scaler
+        
+        evaluateL1 = nn.L1Loss(size_average=False)
+        evaluateL2 = nn.MSELoss(size_average=False)
+        RAE = []
+        RSE = []
+        COR = []
+        with torch.no_grad():
+            for i in range(5):
+                output_empty = True
+                output = None
+                label_empty = True
+                label = None
+                n_samples = 0
+                
+                l1loss = 0.0
+                l2loss = 0.0
+                
+                for x, y in data_iter:
+                    y_pred = predict(model, x, y, opt).permute(0, 3, 2, 1)
+                    y_pred = scaler.inverse_transform(y_pred.cpu().numpy())
+                    y = scaler.inverse_transform(y.permute(0, 3, 2, 1).cpu().numpy())
+                    
+                    y = y[:, :, i].squeeze(1)
+                    y_pred = y_pred[:, :, i].squeeze(1)
+                    
+                    y = torch.from_numpy(y)
+                    y_pred = torch.from_numpy(y_pred)
+                    if output_empty:
+                        output = y_pred
+                        output_empty = False
+                    else:
+                        output = torch.cat((output, y_pred), dim=0)
+                    
+                    if label_empty:
+                        label = y
+                        label_empty = False
+                    else:
+                        label = torch.cat((label, y), dim=0)
+                    
+                    l2loss += evaluateL2(y_pred, y).item()
+                    l1loss += evaluateL1(y_pred, y).item()
+                    n_samples += (y_pred.shape[0] * opt.n_route)
+
+                rae = torch.mean(torch.abs(label - torch.mean(label)))          
+                rse = label.std() * np.sqrt((len(label) - 1.0)/len(label))
+                
+                output = output.data.numpy()
+                label = label.data.numpy()
+                
+                sigma_p = (output).std(axis=0)
+                sigma_g = (label).std(axis=0)
+                mean_p = output.mean(axis=0)
+                mean_g = label.mean(axis=0)
+                idx = (sigma_g != 0)
+                COR_tmp = ((output - mean_p) * (label - mean_g)).mean(axis=0) / (sigma_p * sigma_g)
+                COR_tmp = (COR_tmp[idx]).mean()
+            
+                RSE_tmp = (math.sqrt(l2loss / n_samples) / rse).item()
+                RAE_tmp = ((l1loss / n_samples) / rae).item()
+                
+                if i != 3:
+                    RAE.append(RAE_tmp)
+                    RSE.append(RSE_tmp)
+                    COR.append(COR_tmp)
+            return RAE, RSE, COR
     
     
 def weight_matrix(file_path, sigma2=0.1, epsilon=0.5, scaling=True):

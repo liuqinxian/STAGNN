@@ -1,0 +1,12 @@
+python main.py train        \
+    --n_route=228   \
+    --n_his=12      \
+    --n_pred=12        \
+    --n_train=34    \
+    --n_val=5    \
+    --n_test=5    \
+    --mode=1        \
+    --name='PeMS'   \
+    --data_path="PeMS/V_228.csv"    \
+    --adj_matrix_path="PeMS/W_228.csv"        \
+    --dis_mat['name']="L"      &
