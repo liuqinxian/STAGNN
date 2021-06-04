@@ -1,6 +1,8 @@
 import torch
+import torch.nn as nn
 import numpy as np
 import pandas as pd
+import math
 from models import predict
 
 
@@ -69,7 +71,7 @@ def evaluate_metric(model, data_iter, opt):
             
                 for i in range(length):
                     y_pred_select = y_pred[:, :, 3 * i + 2, :].reshape(-1)
-                    y_select = y[:, :, 3 * i + 2, :].reshape(-1)
+                    y_select = y[:, :, 3 * i + 2, :].reshape(-1).cpu().numpy()
                     d = np.abs(y_select - y_pred_select)
 
                     y_pred_select = torch.from_numpy(y_pred_select)

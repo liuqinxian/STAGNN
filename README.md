@@ -1,3 +1,5 @@
+# Requirements
+`pip install -r requirements.txt`
 # Data
 ## Multi-step forecasting
 PeMSD7(M) saved in folder `/PeMS`, and PeMS_BAY saved in folder `/PeMS_BAY`.

@@ -1,2 +1,2 @@
-from .STGT import STGT
+from .STAGNN import STAGNN
 from .predict import predict

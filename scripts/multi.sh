@@ -7,6 +7,5 @@ python main.py train        \
     --n_test=5    \
     --mode=1        \
     --name='PeMS'   \
-    --data_path="PeMS/V_228.csv"    \
-    --adj_matrix_path="PeMS/W_228.csv"        \
-    --dis_mat['name']="L"      &
+    --data_path="data/PeMS/V_228.csv"    \
+    --adj_matrix_path="data/PeMS/W_228.csv" &

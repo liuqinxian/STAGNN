@@ -4,12 +4,12 @@ import sys
 import torch
 import pandas as pd
 from sklearn.preprocessing import StandardScaler
-from utils.utils import weight_matrix
+
 
 
 class DefaultConfig(object):
     seed = 666
-    device = 0
+    device = 1
 
     scaler = StandardScaler()
     day_slot = 288
@@ -30,7 +30,7 @@ class DefaultConfig(object):
     
     resume = False
     start_epoch = 0
-    epochs = 1500
+    epochs = 1
     
     n_layer = 1
     n_attr, n_hid = 33, 512
@@ -38,7 +38,8 @@ class DefaultConfig(object):
     
     # expand attr by conv
     CE = {'use': True, 'kernel_size': 1, 'bias': False}
-
+    # expand attr by linear
+    LE = {'use': False, 'bias': False}
     # spatio encoding
     SE = {'use': True, 'separate': True, 'no': False}
     # tempo encoding
@@ -53,28 +54,17 @@ class DefaultConfig(object):
     # TeaforN
     T4N = {'use': True, 'step': 2, 'end_epoch': 10000, 'change_head': True, 'change_enc': True}
 
-    data_path = 'PeMS/V_228.csv'
-    adj_matrix_path = 'PeMS/W_228.csv'
-    dis_mat = {'name': 'L', 'matrix': 0.0}
+    data_path = 'data/PeMS/V_228.csv'
+    adj_matrix_path = 'data/PeMS/W_228.csv'
+    dis_mat = None
 
     prefix = 'log/' + name + '/'
-    if not os.path.exists(prefix):
-        os.makedirs(prefix)
     checkpoint_temp_path = prefix + '/temp.pth'
     checkpoint_best_path = prefix + '/best.pth'
     tensorboard_path = prefix
     record_path = prefix + 'record.txt'
     
     eps = 0.1
-    if dis_mat['name'] == 'A':
-        dis_mat['matrix'] = pd.read_csv(adj_matrix_path, header=None).values
-        dis_mat['matrix'] = torch.from_numpy(dis_mat['matrix']).float()
-    elif dis_mat['name'] == 'L':
-        dis_mat['matrix'] = weight_matrix(adj_matrix_path, epsilon=eps)
-        dis_mat['matrix'] = torch.from_numpy(dis_mat['matrix']).float()
-    elif dis_mat['name'] == 'N':
-        dis_mat['matrix'] = 0.0
-
 
     def parse(self, kwargs):
         '''
@@ -85,6 +75,7 @@ class DefaultConfig(object):
                 warnings.warn('Warning: opt has no attribute %s' % k)
             setattr(self, k, v)
 
+    def output(self):
         print('user config:')
         for k, v in self.__class__.__dict__.items():
             if not k.startswith('__'):

@@ -6,10 +6,11 @@ import random
 import models
 import sys
 import os
+import os.path
 from models import predict
 from data import STAGNN_Dataset
 from torch.utils.tensorboard import SummaryWriter
-from utils.utils import evaluate_metric
+from utils.utils import evaluate_metric, weight_matrix
 from config import DefaultConfig, Logger
 
 
@@ -33,8 +34,6 @@ def test(model, loss_fn, test_iter, opt):
     loss_sum, n = 0.0, 0
     for x, y in test_iter:
         y_pred = predict(model, x, y, opt)
-        if opt.AT['use']:
-            y = y[:, :, :, 0].unsqueeze(-1)
         loss = loss_fn(y_pred, y)
         loss_sum += loss.item()
         n += 1
@@ -43,6 +42,24 @@ def test(model, loss_fn, test_iter, opt):
 
 def train(**kwargs):
     opt.parse(kwargs)
+
+    # adj matrix
+    if opt.adj_matrix_path != None:
+        opt.dis_mat = weight_matrix(opt.adj_matrix_path, epsilon=opt.eps)
+        opt.dis_mat = torch.from_numpy(opt.dis_mat).float().cuda()
+    else:
+        opt.dis_mat = 0.0
+
+    # path
+    opt.prefix = 'log/' + opt.name + '/'
+    if not os.path.exists(opt.prefix):
+        os.makedirs(opt.prefix)
+    opt.checkpoint_temp_path = opt.prefix + '/temp.pth'
+    opt.checkpoint_best_path = opt.prefix + '/best.pth'
+    opt.tensorboard_path = opt.prefix
+    opt.record_path = opt.prefix + 'record.txt'
+
+    opt.output()
     
     # load data
     batch_size = opt.batch_size

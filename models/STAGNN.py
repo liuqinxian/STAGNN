@@ -1,15 +1,6 @@
 import torch
 import torch.nn as nn
 from .Layers import ConvExpandAttr, SpatioEnc, TempoEnc, MLP, EncoderLayer, DecoderLayer
-
-
-def CntLoss(model, label, pred):
-    if model['name'] == 'l1':
-        return torch.abs(label - pred).mean()
-    elif model['name'] == 'l4':
-        delta = model['delta']
-        tmp = torch.abs(label - pred)
-        return torch.where(tmp > delta, delta * tmp - delta * delta / 2, 0.5 * tmp**2).mean()
            
 
 class SrcProcess(nn.Module):
@@ -60,7 +51,7 @@ class TrgProcess(nn.Module):
         # spatio encoding
         self.SE = opt.SE['use']
         if self.SE:
-            self.dec_spa_enco = SpatioEnc(n_route, n_attr, SE_spa_no = opt.SE['no'])
+            self.dec_spa_enco = SpatioEnc(n_route, n_attr, opt.SE['no'])
 
         # temporal encoding
         self.TE = opt.TE['use']
@@ -125,7 +116,7 @@ class STAGNN(nn.Module):
     ):
         super().__init__()
         self.src_pro = SrcProcess(opt)
-        self.trg_pro = TrgProcess(opt, self.src_pro.enc_spa_enco)
+        self.trg_pro = TrgProcess(opt)
 
         self.dec_rdu = ConvExpandAttr(opt.n_attr, 1, opt.CE['kernel_size'], opt.CE['bias'])
 
@@ -138,8 +129,6 @@ class STAGNN(nn.Module):
             self.change_head = opt.T4N['change_head']
             self.change_enc = opt.T4N['change_enc']
             self.T4N_end = opt.T4N['end_epoch']
-        
-        self.loss_fn = opt.loss_fn
 
         self.n_pred = opt.n_pred
     
@@ -168,5 +157,5 @@ class STAGNN(nn.Module):
                 dec_output = self.dec_rdu(dec_output)
                 trg = dec_output[:, :, 1:, :]
 
-                loss = loss + CntLoss(self.loss_fn, label[:, :, i:i+self.n_pred, :], dec_output[:, :, :-1, :])
+                loss = loss + torch.abs(label[:, :, i:i+self.n_pred, :] - dec_output[:, :, :-1, :]).mean()
             return dec_output[:, :, :-1, :], loss

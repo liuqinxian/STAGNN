@@ -4,5 +4,5 @@ python main.py train        \
     --n_pred=5        \
     --mode=2        \
     --name='solar-energy'   \
-    --data_path="solar-energy.txt"    \
-    --dis_mat['name']="N"      &
+    --data_path="data/solar-energy/solar-energy.txt"    \
+    --adj_matrix_path=None  &

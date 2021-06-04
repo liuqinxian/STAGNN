@@ -32,11 +32,7 @@ class STAttnGraphConv(nn.Module):
             nn.Linear(d_attribute, d_out, bias=False) for _ in range(kt)
         ])
 
-        self.DM = dis_mat['name']
-        if self.DM == 'N':
-            self.distant_mat = dis_mat['matrix']
-        else:
-            self.distant_mat = dis_mat['matrix'].cuda()
+        self.distant_mat = dis_mat
 
         self.no = normal
         if self.no:
