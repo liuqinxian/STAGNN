@@ -30,7 +30,7 @@ class DefaultConfig(object):
     
     resume = False
     start_epoch = 0
-    epochs = 1
+    epochs = 1500
     
     n_layer = 1
     n_attr, n_hid = 33, 512
